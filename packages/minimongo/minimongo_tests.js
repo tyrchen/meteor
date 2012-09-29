@@ -970,7 +970,7 @@ Tinytest.add("minimongo - diff", function (test) {
       }
     };
 
-    LocalCollection._diffQuery(old_results, new_results, observer);
+    LocalCollection._diffQueryOrdered(old_results, new_results, observer);
     test.equal(results, new_results);
   };
 

@@ -47,7 +47,7 @@ Meteor._runTestsEverywhere = function (onReport, onComplete) {
   });
 
   var sub_handle = Meteor.subscribe('tinytest/results', run_id);
-  var query_handle = Meteor._ServerTestResults.find().observe({
+  var query_handle = Meteor._ServerTestResults.find()._observeUnordered({
     added: function (doc) {
       _.each(doc.report.events || [], function (event) {
         delete event.cookie; // can't debug a server test on the client..
