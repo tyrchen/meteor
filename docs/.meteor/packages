@@ -10,3 +10,10 @@ code-prettify
 jquery-waypoints
 less
 spiderable
+accounts-ui
+accounts-facebook
+accounts-password
+accounts-google
+accounts-weibo
+accounts-twitter
+accounts-github
