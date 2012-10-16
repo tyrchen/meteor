@@ -608,6 +608,18 @@ Template.api.current = {
   descr: ["The current [`invalidation context`](#context), or `null` if not being called from inside [`run`](#run)."]
 };
 
+Template.api.autorun = {
+  id: "meteor_autorun",
+  name: "Meteor.autorun(func)",
+  locus: "Client",
+  descr: ["Run a function and rerun it whenever its dependencies change. Returns a handle that provides a `stop` method, which will prevent further reruns."],
+  args: [
+    {name: "func",
+     type: "Function",
+     descr: "The function to run. It receives one argument: the same handle that `Meteor.autorun` returns."}
+  ]
+};
+
 Template.api.flush = {
   id: "meteor_flush",
   name: "Meteor.flush()",
@@ -968,7 +980,7 @@ Template.api.accounts_emailTemplates = {
   id: "accounts_emailtemplates",
   name: "Accounts.emailTemplates",
   locus: "Anywhere",
-  descr: ["XXX"]
+  descr: ["Options to customize emails sent from the Accounts system."]
 };
 
 
@@ -1034,7 +1046,7 @@ Template.api.accounts_onCreateUser = {
     {
       name: "func",
       type: "Function",
-      descr: "Called whenever a new user is created. Return the new user ojbject, or throw an `Error` to abort the creation."
+      descr: "Called whenever a new user is created. Return the new user object, or throw an `Error` to abort the creation."
     }
   ]
 };

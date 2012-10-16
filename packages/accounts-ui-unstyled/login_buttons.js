@@ -8,7 +8,7 @@
   Handlebars.registerHelper(
     "loginButtons",
     function (options) {
-      if (options.hash.halign === "right")
+      if (options.hash.align === "right")
         return new Handlebars.SafeString(Template._loginButtonsRight());
       else
         return new Handlebars.SafeString(Template._loginButtonsLeft());
@@ -23,6 +23,9 @@
     }
   });
 
+  Template._loginButtons.preserve({
+    'input[id]': Spark._labelFromIdOrName
+  });
 
   //
   // loginButtonLoggedOut template
@@ -152,4 +155,3 @@
   };
 
 })();
-
