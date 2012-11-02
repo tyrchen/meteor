@@ -11,7 +11,7 @@
 	email: identity.email,
 	username: identity.login
       },
-      options: {profile: {name: identity.name}}
+      options: {profile: identity}
     };
   });
 
