@@ -442,6 +442,12 @@ _.extend(Meteor._LivedataSession.prototype, {
   }
 });
 
+// The current write fence. When there is a current write fence, code
+// that writes to databases should register their writes with it using
+// beginWrite().
+Meteor._CurrentWriteFence = new Meteor.EnvironmentVariable;
+
+
 /******************************************************************************/
 /* LivedataSubscription                                                       */
 /******************************************************************************/
@@ -610,6 +616,7 @@ _.extend(Meteor._LivedataSubscription.prototype, {
     // tell listeners, so they can clean up
     for (var i = 0; i < self.stop_callbacks.length; i++)
       (self.stop_callbacks[i])();
+    self.stop_callbacks = [];
 
     // remove our data from the client (possibly unshadowing data from
     // lower priority subscriptions)
