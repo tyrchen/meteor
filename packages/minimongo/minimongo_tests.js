@@ -127,9 +127,15 @@ _.each(['observe', '_observeUnordered'], function (observeMethod) {
     test.equal(c.find(undefined).count(), 0);
     test.equal(c.find().count(), 3);
 
+    // Regression test for #455.
     c.insert({foo: {bar: 'baz'}});
     test.equal(c.find({foo: {bam: 'baz'}}).count(), 0);
     test.equal(c.find({foo: {bar: 'baz'}}).count(), 1);
+
+    // Duplicate ID.
+    test.throws(function () { c.insert({_id: 1, name: "bla"}); });
+    test.equal(c.find({_id: 1}).count(), 1);
+    test.equal(c.findOne(1).name, "strawberry");
 
     var ev = "";
     var makecb = function (tag) {
@@ -162,6 +168,13 @@ _.each(['observe', '_observeUnordered'], function (observeMethod) {
     // After calling stop, no more callbacks are called.
     c.insert({_id: 5, name: "iris", tags: ["flower"]});
     expect("");
+
+    // Test that observing a lookup by ID works.
+    handle = c.find(4)[observeMethod](makecb('b'));
+    expect('ab4_');
+    c.update(4, {$set: {eek: 5}});
+    expect('cb4_');
+    handle.stop();
   });
 });
 
@@ -573,8 +586,256 @@ Tinytest.add("minimongo - selector_compiler", function (test) {
   match({"a.b": {$in: [1, 2, 3]}}, {a: {b: [4, 2]}});
   nomatch({"a.b": {$in: [1, 2, 3]}}, {a: {b: [4]}});
 
+  // $or
+  test.throws(function () {
+    match({$or: []}, {});
+  });
+  test.throws(function () {
+    match({$or: []}, {a: 1});
+  });
+  match({$or: [{a: 1}]}, {a: 1});
+  nomatch({$or: [{b: 2}]}, {a: 1});
+  match({$or: [{a: 1}, {b: 2}]}, {a: 1});
+  nomatch({$or: [{c: 3}, {d: 4}]}, {a: 1});
+  match({$or: [{a: 1}, {b: 2}]}, {a: [1, 2, 3]});
+  nomatch({$or: [{a: 1}, {b: 2}]}, {c: [1, 2, 3]});
+  nomatch({$or: [{a: 1}, {b: 2}]}, {a: [2, 3, 4]});
+  match({$or: [{a: 1}, {a: 2}]}, {a: 1});
+  match({$or: [{a: 1}, {a: 2}], b: 2}, {a: 1, b: 2});
+  nomatch({$or: [{a: 2}, {a: 3}], b: 2}, {a: 1, b: 2});
+  nomatch({$or: [{a: 1}, {a: 2}], b: 3}, {a: 1, b: 2});
+
+  // $or and $lt, $lte, $gt, $gte
+  match({$or: [{a: {$lte: 1}}, {a: 2}]}, {a: 1});
+  nomatch({$or: [{a: {$lt: 1}}, {a: 2}]}, {a: 1});
+  match({$or: [{a: {$gte: 1}}, {a: 2}]}, {a: 1});
+  nomatch({$or: [{a: {$gt: 1}}, {a: 2}]}, {a: 1});
+  match({$or: [{b: {$gt: 1}}, {b: {$lt: 3}}]}, {b: 2});
+  nomatch({$or: [{b: {$lt: 1}}, {b: {$gt: 3}}]}, {b: 2});
+
+  // $or and $in
+  match({$or: [{a: {$in: [1, 2, 3]}}]}, {a: 1});
+  nomatch({$or: [{a: {$in: [4, 5, 6]}}]}, {a: 1});
+  match({$or: [{a: {$in: [1, 2, 3]}}, {b: 2}]}, {a: 1});
+  match({$or: [{a: {$in: [1, 2, 3]}}, {b: 2}]}, {b: 2});
+  nomatch({$or: [{a: {$in: [1, 2, 3]}}, {b: 2}]}, {c: 3});
+  match({$or: [{a: {$in: [1, 2, 3]}}, {b: {$in: [1, 2, 3]}}]}, {b: 2});
+  nomatch({$or: [{a: {$in: [1, 2, 3]}}, {b: {$in: [4, 5, 6]}}]}, {b: 2});
+
+  // $or and $nin
+  nomatch({$or: [{a: {$nin: [1, 2, 3]}}]}, {a: 1});
+  match({$or: [{a: {$nin: [4, 5, 6]}}]}, {a: 1});
+  nomatch({$or: [{a: {$nin: [1, 2, 3]}}, {b: 2}]}, {a: 1});
+  match({$or: [{a: {$nin: [1, 2, 3]}}, {b: 2}]}, {b: 2});
+  match({$or: [{a: {$nin: [1, 2, 3]}}, {b: 2}]}, {c: 3});
+  match({$or: [{a: {$nin: [1, 2, 3]}}, {b: {$nin: [1, 2, 3]}}]}, {b: 2});
+  nomatch({$or: [{a: {$nin: [1, 2, 3]}}, {b: {$nin: [1, 2, 3]}}]}, {a: 1, b: 2});
+  match({$or: [{a: {$nin: [1, 2, 3]}}, {b: {$nin: [4, 5, 6]}}]}, {b: 2});
+
+  // $or and dot-notation
+  match({$or: [{"a.b": 1}, {"a.b": 2}]}, {a: {b: 1}});
+  match({$or: [{"a.b": 1}, {"a.c": 1}]}, {a: {b: 1}});
+  nomatch({$or: [{"a.b": 2}, {"a.c": 1}]}, {a: {b: 1}});
+
+  // $or and nested objects
+  match({$or: [{a: {b: 1, c: 2}}, {a: {b: 2, c: 1}}]}, {a: {b: 1, c: 2}});
+  nomatch({$or: [{a: {b: 1, c: 3}}, {a: {b: 2, c: 1}}]}, {a: {b: 1, c: 2}});
+
+  // $or and regexes
+  match({$or: [{a: /a/}]}, {a: "cat"});
+  nomatch({$or: [{a: /o/}]}, {a: "cat"});
+  match({$or: [{a: /a/}, {a: /o/}]}, {a: "cat"});
+  nomatch({$or: [{a: /i/}, {a: /o/}]}, {a: "cat"});
+  match({$or: [{a: /i/}, {b: /o/}]}, {a: "cat", b: "dog"});
+
+  // $or and $ne
+  match({$or: [{a: {$ne: 1}}]}, {});
+  nomatch({$or: [{a: {$ne: 1}}]}, {a: 1});
+  match({$or: [{a: {$ne: 1}}]}, {a: 2});
+  match({$or: [{a: {$ne: 1}}]}, {b: 1});
+  match({$or: [{a: {$ne: 1}}, {a: {$ne: 2}}]}, {a: 1});
+  match({$or: [{a: {$ne: 1}}, {b: {$ne: 1}}]}, {a: 1});
+  nomatch({$or: [{a: {$ne: 1}}, {b: {$ne: 2}}]}, {a: 1, b: 2});
+
+  // $or and $not
+  match({$or: [{a: {$not: {$mod: [10, 1]}}}]}, {});
+  nomatch({$or: [{a: {$not: {$mod: [10, 1]}}}]}, {a: 1});
+  match({$or: [{a: {$not: {$mod: [10, 1]}}}]}, {a: 2});
+  match({$or: [{a: {$not: {$mod: [10, 1]}}}, {a: {$not: {$mod: [10, 2]}}}]}, {a: 1});
+  nomatch({$or: [{a: {$not: {$mod: [10, 1]}}}, {a: {$mod: [10, 2]}}]}, {a: 1});
+  match({$or: [{a: {$not: {$mod: [10, 1]}}}, {a: {$mod: [10, 2]}}]}, {a: 2});
+  match({$or: [{a: {$not: {$mod: [10, 1]}}}, {a: {$mod: [10, 2]}}]}, {a: 3});
+  // this is possibly an open-ended task, so we stop here ...
+  
+  // $nor
+  test.throws(function () {
+    match({$nor: []}, {});
+  });
+  test.throws(function () {
+    match({$nor: []}, {a: 1});
+  });
+  nomatch({$nor: [{a: 1}]}, {a: 1});
+  match({$nor: [{b: 2}]}, {a: 1});
+  nomatch({$nor: [{a: 1}, {b: 2}]}, {a: 1});
+  match({$nor: [{c: 3}, {d: 4}]}, {a: 1});
+  nomatch({$nor: [{a: 1}, {b: 2}]}, {a: [1, 2, 3]});
+  match({$nor: [{a: 1}, {b: 2}]}, {c: [1, 2, 3]});
+  match({$nor: [{a: 1}, {b: 2}]}, {a: [2, 3, 4]});
+  nomatch({$nor: [{a: 1}, {a: 2}]}, {a: 1});
+
+  // $nor and $lt, $lte, $gt, $gte
+  nomatch({$nor: [{a: {$lte: 1}}, {a: 2}]}, {a: 1});
+  match({$nor: [{a: {$lt: 1}}, {a: 2}]}, {a: 1});
+  nomatch({$nor: [{a: {$gte: 1}}, {a: 2}]}, {a: 1});
+  match({$nor: [{a: {$gt: 1}}, {a: 2}]}, {a: 1});
+  nomatch({$nor: [{b: {$gt: 1}}, {b: {$lt: 3}}]}, {b: 2});
+  match({$nor: [{b: {$lt: 1}}, {b: {$gt: 3}}]}, {b: 2});
+
+  // $nor and $in
+  nomatch({$nor: [{a: {$in: [1, 2, 3]}}]}, {a: 1});
+  match({$nor: [{a: {$in: [4, 5, 6]}}]}, {a: 1});
+  nomatch({$nor: [{a: {$in: [1, 2, 3]}}, {b: 2}]}, {a: 1});
+  nomatch({$nor: [{a: {$in: [1, 2, 3]}}, {b: 2}]}, {b: 2});
+  match({$nor: [{a: {$in: [1, 2, 3]}}, {b: 2}]}, {c: 3});
+  nomatch({$nor: [{a: {$in: [1, 2, 3]}}, {b: {$in: [1, 2, 3]}}]}, {b: 2});
+  match({$nor: [{a: {$in: [1, 2, 3]}}, {b: {$in: [4, 5, 6]}}]}, {b: 2});
+
+  // $nor and $nin
+  match({$nor: [{a: {$nin: [1, 2, 3]}}]}, {a: 1});
+  nomatch({$nor: [{a: {$nin: [4, 5, 6]}}]}, {a: 1});
+  match({$nor: [{a: {$nin: [1, 2, 3]}}, {b: 2}]}, {a: 1});
+  nomatch({$nor: [{a: {$nin: [1, 2, 3]}}, {b: 2}]}, {b: 2});
+  nomatch({$nor: [{a: {$nin: [1, 2, 3]}}, {b: 2}]}, {c: 3});
+  nomatch({$nor: [{a: {$nin: [1, 2, 3]}}, {b: {$nin: [1, 2, 3]}}]}, {b: 2});
+  match({$nor: [{a: {$nin: [1, 2, 3]}}, {b: {$nin: [1, 2, 3]}}]}, {a: 1, b: 2});
+  nomatch({$nor: [{a: {$nin: [1, 2, 3]}}, {b: {$nin: [4, 5, 6]}}]}, {b: 2});
+
+  // $nor and dot-notation
+  nomatch({$nor: [{"a.b": 1}, {"a.b": 2}]}, {a: {b: 1}});
+  nomatch({$nor: [{"a.b": 1}, {"a.c": 1}]}, {a: {b: 1}});
+  match({$nor: [{"a.b": 2}, {"a.c": 1}]}, {a: {b: 1}});
+
+  // $nor and nested objects
+  nomatch({$nor: [{a: {b: 1, c: 2}}, {a: {b: 2, c: 1}}]}, {a: {b: 1, c: 2}});
+  match({$nor: [{a: {b: 1, c: 3}}, {a: {b: 2, c: 1}}]}, {a: {b: 1, c: 2}});
+
+  // $nor and regexes
+  nomatch({$nor: [{a: /a/}]}, {a: "cat"});
+  match({$nor: [{a: /o/}]}, {a: "cat"});
+  nomatch({$nor: [{a: /a/}, {a: /o/}]}, {a: "cat"});
+  match({$nor: [{a: /i/}, {a: /o/}]}, {a: "cat"});
+  nomatch({$nor: [{a: /i/}, {b: /o/}]}, {a: "cat", b: "dog"});
+
+  // $nor and $ne
+  nomatch({$nor: [{a: {$ne: 1}}]}, {});
+  match({$nor: [{a: {$ne: 1}}]}, {a: 1});
+  nomatch({$nor: [{a: {$ne: 1}}]}, {a: 2});
+  nomatch({$nor: [{a: {$ne: 1}}]}, {b: 1});
+  nomatch({$nor: [{a: {$ne: 1}}, {a: {$ne: 2}}]}, {a: 1});
+  nomatch({$nor: [{a: {$ne: 1}}, {b: {$ne: 1}}]}, {a: 1});
+  match({$nor: [{a: {$ne: 1}}, {b: {$ne: 2}}]}, {a: 1, b: 2});
+
+  // $nor and $not
+  nomatch({$nor: [{a: {$not: {$mod: [10, 1]}}}]}, {});
+  match({$nor: [{a: {$not: {$mod: [10, 1]}}}]}, {a: 1});
+  nomatch({$nor: [{a: {$not: {$mod: [10, 1]}}}]}, {a: 2});
+  nomatch({$nor: [{a: {$not: {$mod: [10, 1]}}}, {a: {$not: {$mod: [10, 2]}}}]}, {a: 1});
+  match({$nor: [{a: {$not: {$mod: [10, 1]}}}, {a: {$mod: [10, 2]}}]}, {a: 1});
+  nomatch({$nor: [{a: {$not: {$mod: [10, 1]}}}, {a: {$mod: [10, 2]}}]}, {a: 2});
+  nomatch({$nor: [{a: {$not: {$mod: [10, 1]}}}, {a: {$mod: [10, 2]}}]}, {a: 3});
+
+  // $and
+
+  test.throws(function () {
+    match({$and: []}, {});
+  });
+  test.throws(function () {
+    match({$and: []}, {a: 1});
+  });
+  match({$and: [{a: 1}]}, {a: 1});
+  nomatch({$and: [{a: 1}, {a: 2}]}, {a: 1});
+  nomatch({$and: [{a: 1}, {b: 1}]}, {a: 1});
+  match({$and: [{a: 1}, {b: 2}]}, {a: 1, b: 2});
+  nomatch({$and: [{a: 1}, {b: 1}]}, {a: 1, b: 2});
+  match({$and: [{a: 1}, {b: 2}], c: 3}, {a: 1, b: 2, c: 3});
+  nomatch({$and: [{a: 1}, {b: 2}], c: 4}, {a: 1, b: 2, c: 3});
+
+  // $and and regexes
+  match({$and: [{a: /a/}]}, {a: "cat"});
+  match({$and: [{a: /a/i}]}, {a: "CAT"});
+  nomatch({$and: [{a: /o/}]}, {a: "cat"});
+  nomatch({$and: [{a: /a/}, {a: /o/}]}, {a: "cat"});
+  match({$and: [{a: /a/}, {b: /o/}]}, {a: "cat", b: "dog"});
+  nomatch({$and: [{a: /a/}, {b: /a/}]}, {a: "cat", b: "dog"});
+
+  // $and, dot-notation, and nested objects
+  match({$and: [{"a.b": 1}]}, {a: {b: 1}});
+  match({$and: [{a: {b: 1}}]}, {a: {b: 1}});
+  nomatch({$and: [{"a.b": 2}]}, {a: {b: 1}});
+  nomatch({$and: [{"a.c": 1}]}, {a: {b: 1}});
+  nomatch({$and: [{"a.b": 1}, {"a.b": 2}]}, {a: {b: 1}});
+  nomatch({$and: [{"a.b": 1}, {a: {b: 2}}]}, {a: {b: 1}});
+  match({$and: [{"a.b": 1}, {"c.d": 2}]}, {a: {b: 1}, c: {d: 2}});
+  nomatch({$and: [{"a.b": 1}, {"c.d": 1}]}, {a: {b: 1}, c: {d: 2}});
+  match({$and: [{"a.b": 1}, {c: {d: 2}}]}, {a: {b: 1}, c: {d: 2}});
+  nomatch({$and: [{"a.b": 1}, {c: {d: 1}}]}, {a: {b: 1}, c: {d: 2}});
+  nomatch({$and: [{"a.b": 2}, {c: {d: 2}}]}, {a: {b: 1}, c: {d: 2}});
+  match({$and: [{a: {b: 1}}, {c: {d: 2}}]}, {a: {b: 1}, c: {d: 2}});
+  nomatch({$and: [{a: {b: 2}}, {c: {d: 2}}]}, {a: {b: 1}, c: {d: 2}});
+
+  // $and and $in
+  nomatch({$and: [{a: {$in: []}}]}, {});
+  match({$and: [{a: {$in: [1, 2, 3]}}]}, {a: 1});
+  nomatch({$and: [{a: {$in: [4, 5, 6]}}]}, {a: 1});
+  nomatch({$and: [{a: {$in: [1, 2, 3]}}, {a: {$in: [4, 5, 6]}}]}, {a: 1});
+  nomatch({$and: [{a: {$in: [1, 2, 3]}}, {b: {$in: [1, 2, 3]}}]}, {a: 1, b: 4});
+  match({$and: [{a: {$in: [1, 2, 3]}}, {b: {$in: [4, 5, 6]}}]}, {a: 1, b: 4});
+
+
+  // $and and $nin
+  match({$and: [{a: {$nin: []}}]}, {});
+  nomatch({$and: [{a: {$nin: [1, 2, 3]}}]}, {a: 1});
+  match({$and: [{a: {$nin: [4, 5, 6]}}]}, {a: 1});
+  nomatch({$and: [{a: {$nin: [1, 2, 3]}}, {a: {$nin: [4, 5, 6]}}]}, {a: 1});
+  nomatch({$and: [{a: {$nin: [1, 2, 3]}}, {b: {$nin: [1, 2, 3]}}]}, {a: 1, b: 4});
+  nomatch({$and: [{a: {$nin: [1, 2, 3]}}, {b: {$nin: [4, 5, 6]}}]}, {a: 1, b: 4});
+
+  // $and and $lt, $lte, $gt, $gte
+  match({$and: [{a: {$lt: 2}}]}, {a: 1}); 
+  nomatch({$and: [{a: {$lt: 1}}]}, {a: 1}); 
+  match({$and: [{a: {$lte: 1}}]}, {a: 1}); 
+  match({$and: [{a: {$gt: 0}}]}, {a: 1}); 
+  nomatch({$and: [{a: {$gt: 1}}]}, {a: 1}); 
+  match({$and: [{a: {$gte: 1}}]}, {a: 1}); 
+  match({$and: [{a: {$gt: 0}}, {a: {$lt: 2}}]}, {a: 1}); 
+  nomatch({$and: [{a: {$gt: 1}}, {a: {$lt: 2}}]}, {a: 1}); 
+  nomatch({$and: [{a: {$gt: 0}}, {a: {$lt: 1}}]}, {a: 1}); 
+  match({$and: [{a: {$gte: 1}}, {a: {$lte: 1}}]}, {a: 1}); 
+  nomatch({$and: [{a: {$gte: 2}}, {a: {$lte: 0}}]}, {a: 1}); 
+
+  // $and and $ne
+  match({$and: [{a: {$ne: 1}}]}, {});
+  nomatch({$and: [{a: {$ne: 1}}]}, {a: 1});
+  match({$and: [{a: {$ne: 1}}]}, {a: 2});
+  nomatch({$and: [{a: {$ne: 1}}, {a: {$ne: 2}}]}, {a: 2});
+  match({$and: [{a: {$ne: 1}}, {a: {$ne: 3}}]}, {a: 2});
+
+  // $and and $not
+  match({$and: [{a: {$not: {$gt: 2}}}]}, {a: 1});
+  nomatch({$and: [{a: {$not: {$lt: 2}}}]}, {a: 1});
+  match({$and: [{a: {$not: {$lt: 0}}}, {a: {$not: {$gt: 2}}}]}, {a: 1});
+  nomatch({$and: [{a: {$not: {$lt: 2}}}, {a: {$not: {$gt: 0}}}]}, {a: 1});
+
+  // $where
+  match({$where: "this.a === 1"}, {a: 1});
+  nomatch({$where: "this.a !== 1"}, {a: 1});
+  nomatch({$where: "this.a === 1", a: 2}, {a: 1});
+  match({$where: "this.a === 1", b: 2}, {a: 1, b: 2});
+  match({$where: "this.a === 1 && this.b === 2"}, {a: 1, b: 2});
+  match({$where: "Array.isArray(this.a)"}, {a: []});
+  nomatch({$where: "Array.isArray(this.a)"}, {a: 1});
+
   // XXX still needs tests:
-  // - $or, $and, $nor, $where
   // - $elemMatch
   // - people.2.name
   // - non-scalar arguments to $gt, $lt, etc
@@ -1055,93 +1316,66 @@ Tinytest.add("minimongo - diff", function (test) {
 });
 
 
-Tinytest.add("minimongo - snapshot", function (test) {
-  var operations = [];
-  var cbs = log_callbacks(operations);
-
+Tinytest.add("minimongo - saveOriginals", function (test) {
+  // set up some data
   var c = new LocalCollection();
-  var h = c.find({}).observe(cbs);
+  c.insert({_id: 'foo', x: 'untouched'});
+  c.insert({_id: 'bar', x: 'updateme'});
+  c.insert({_id: 'baz', x: 'updateme'});
+  c.insert({_id: 'quux', y: 'removeme'});
+  c.insert({_id: 'whoa', y: 'removeme'});
 
-  // snapshot empty, restore immediately.
+  // Save originals and make some changes.
+  c.saveOriginals();
+  c.insert({_id: "hooray", z: 'insertme'});
+  c.remove({y: 'removeme'});
+  c.update({x: 'updateme'}, {$set: {z: 5}}, {multi: true});
+  c.update('bar', {$set: {k: 7}});  // update same doc twice
 
-  test.equal(c.find().count(), 0);
-  test.length(operations, 0);
-  c.snapshot();
-  test.equal(c.find().count(), 0);
-  test.length(operations, 0);
-  c.restore();
-  test.equal(c.find().count(), 0);
-  test.length(operations, 0);
+  // Verify the originals.
+  var originals = c.retrieveOriginals();
+  var affected = ['bar', 'baz', 'quux', 'whoa', 'hooray'];
+  test.equal(_.size(originals), _.size(affected));
+  _.each(affected, function (id) {
+    test.isTrue(_.has(originals, id));
+  });
+  test.equal(originals.bar, {_id: 'bar', x: 'updateme'});
+  test.equal(originals.baz, {_id: 'baz', x: 'updateme'});
+  test.equal(originals.quux, {_id: 'quux', y: 'removeme'});
+  test.equal(originals.whoa, {_id: 'whoa', y: 'removeme'});
+  test.equal(originals.hooray, undefined);
 
+  // Verify that changes actually occured.
+  test.equal(c.find().count(), 4);
+  test.equal(c.findOne('foo'), {_id: 'foo', x: 'untouched'});
+  test.equal(c.findOne('bar'), {_id: 'bar', x: 'updateme', z: 5, k: 7});
+  test.equal(c.findOne('baz'), {_id: 'baz', x: 'updateme', z: 5});
+  test.equal(c.findOne('hooray'), {_id: 'hooray', z: 'insertme'});
 
-  // snapshot empty, add new docs
+  // The next call doesn't get the same originals again.
+  c.saveOriginals();
+  originals = c.retrieveOriginals();
+  test.isTrue(originals);
+  test.isTrue(_.isEmpty(originals));
 
-  test.equal(c.find().count(), 0);
-  test.length(operations, 0);
-
-  c.snapshot();
-  test.equal(c.find().count(), 0);
-
-  c.insert({_id: 1, a: 1});
-  test.equal(c.find().count(), 1);
-  test.equal(operations.shift(), ['added', {a:1}, 0]);
-  c.insert({_id: 2, b: 2});
-  test.equal(c.find().count(), 2);
-  test.equal(operations.shift(), ['added', {b:2}, 1]);
-
-  c.restore();
-
-  test.equal(c.find().count(), 0);
-  test.equal(operations.shift(), ['removed', 1, 0, {a:1}]);
-  test.equal(operations.shift(), ['removed', 2, 0, {b:2}]);
-
-
-  // snapshot with contents. see we get add, update and remove.
-  // depends on observer update order from diffQuery.
-  // reorder test statements if this changes.
-
-  c.insert({_id: 1, a: 1});
-  test.equal(c.find().count(), 1);
-  test.equal(operations.shift(), ['added', {a:1}, 0]);
-  c.insert({_id: 2, b: 2});
-  test.equal(c.find().count(), 2);
-  test.equal(operations.shift(), ['added', {b:2}, 1]);
-
-  c.snapshot();
-  test.equal(c.find().count(), 2);
-
-  c.remove({_id: 1});
-  test.equal(c.find().count(), 1);
-  test.equal(operations.shift(), ['removed', 1, 0, {a:1}]);
-  c.insert({_id: 3, c: 3});
-  test.equal(c.find().count(), 2);
-  test.equal(operations.shift(), ['added', {c:3}, 1]);
-  c.update({_id: 2}, {$set: {b: 4}});
-  test.equal(operations.shift(), ['changed', {b:4}, 0, {b:2}]);
-
-  c.restore();
-  test.equal(c.find().count(), 2);
-  test.equal(operations.shift(), ['added', {a:1}, 0]);
-  test.equal(operations.shift(), ['changed', {b:2}, 1, {b:4}]);
-  test.equal(operations.shift(), ['removed', 3, 2, {c:3}]);
-
-
-  // snapshot with stuff. restore immediately. no changes.
-
-  test.equal(c.find().count(), 2);
-  test.length(operations, 0);
-  c.snapshot();
-  test.equal(c.find().count(), 2);
-  test.length(operations, 0);
-  c.restore();
-  test.equal(c.find().count(), 2);
-  test.length(operations, 0);
-
-
-
-  h.stop();
+  // Insert and remove a document during the period.
+  c.saveOriginals();
+  c.insert({_id: 'temp', q: 8});
+  c.remove('temp');
+  originals = c.retrieveOriginals();
+  test.equal(_.size(originals), 1);
+  test.isTrue(_.has(originals, 'temp'));
+  test.equal(originals.temp, undefined);
 });
 
+Tinytest.add("minimongo - saveOriginals errors", function (test) {
+  var c = new LocalCollection();
+  // Can't call retrieve before save.
+  test.throws(function () { c.retrieveOriginals(); });
+  c.saveOriginals();
+  // Can't call save twice.
+  test.throws(function () { c.saveOriginals(); });
+});
 
 Tinytest.add("minimongo - pause", function (test) {
   var operations = [];
@@ -1174,37 +1408,6 @@ Tinytest.add("minimongo - pause", function (test) {
   c.resumeObservers();
   test.equal(operations.shift(), ['changed', {a:3}, 0, {a:1}]);
   test.length(operations, 0);
-
-
-  // snapshot/restore, same results
-  c.snapshot();
-
-  c.insert({_id: 2, b: 2});
-  test.equal(operations.shift(), ['added', {b:2}, 1]);
-
-  c.pauseObservers();
-  c.restore();
-  c.insert({_id: 2, b: 2});
-  test.length(operations, 0);
-
-  c.resumeObservers();
-  test.length(operations, 0);
-
-  // snapshot/restore, different results
-  c.snapshot();
-
-  c.insert({_id: 3, c: 3});
-  test.equal(operations.shift(), ['added', {c:3}, 2]);
-
-  c.pauseObservers();
-  c.restore();
-  c.insert({_id: 3, c: 4});
-  test.length(operations, 0);
-
-  c.resumeObservers();
-  test.equal(operations.shift(), ['changed', {c:4}, 2, {c:3}]);
-  test.length(operations, 0);
-
 
   h.stop();
 });
