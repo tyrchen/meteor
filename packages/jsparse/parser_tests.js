@@ -397,6 +397,10 @@ Tinytest.add("jsparse - syntax forms", function (test) {
     ["null + this - 3 + true",
      "program(expressionStmnt(binary(binary(binary(null(null) + this(this)) - " +
      "number(3)) + boolean(true)) ;()))"],
+    ["+.5",
+     "program(expressionStmnt(unary(+ number(.5)) ;()))"],
+    ["a1a1a",
+     "program(expressionStmnt(identifier(a1a1a) ;()))"],
     ["a / /b/mgi / c",
      "program(expressionStmnt(binary(binary(identifier(a) / " +
      "regex(/b/mgi)) / identifier(c)) ;()))"],

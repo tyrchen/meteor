@@ -91,7 +91,7 @@ var rRegexLiteral = /\/(?![*\/])(\\.|(?=.)[^\\])+?\//g;
 var rRegexFlags = /[a-zA-Z]*/g;
 
 var rDecider =
-      /((?=.)\s)|(\/[\/\*]?)|([\][{}().;,<>=!+*%&|^~?:-])|(\d)|(["'])|(.)|([\S\s])/g;
+      /((?=.)\s)|(\/[\/\*]?)|([\][{}();,<>=!+*%&|^~?:-]|\.(?![0-9]))|([\d.])|(["'])|(.)|([\S\s])/g;
 
 var keywordLookup = {
   ' break': 'KEYWORD',
@@ -392,10 +392,11 @@ JSLexer.prototype.next = function () {
   }
   // dot (any non-line-terminator)
   run(rIdentifierPrefix);
-  // Use non-short-circuiting OR, '|', to allow matching
+  // Use non-short-circuiting bitwise OR, '|', to always try
   // both regexes in sequence, returning false only if neither
   // matched.
-  while (run(rIdentifierMiddle) | run(rIdentifierPrefix)) {/*continue*/}
+  while ((!! run(rIdentifierMiddle)) |
+         (!! run(rIdentifierPrefix))) { /*continue*/ }
   var word = code.substring(origPos, pos);
   return lexeme(keywordLookup[' '+word] || 'IDENTIFIER');
 };
