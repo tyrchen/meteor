@@ -30,6 +30,8 @@ put on the screen.
 
 {{> api_box absoluteUrl}}
 
+{{> api_box settings}}
+
 <h2 id="publishandsubscribe"><span>Publish and subscribe</span></h2>
 
 These functions control how Meteor servers publish sets of records and
@@ -2451,6 +2453,35 @@ If `MAIL_URL` is not set (eg, when running your application locally),
 
 You must provide the `from` option and at least one of `to`, `cc`, and `bcc`;
 all other options are optional.
+
+`Email.send` only works on the server. Here is an example of how a
+client could use a server method call to send an email. (In an actual
+application, you'd need to be careful to limit the emails that a
+client could send, to prevent your server from being used as a relay
+by spammers.)
+
+    // In your server code: define a method that the client can call
+    Meteor.methods({
+      sendEmail: function (to, from, subject, text) {
+        // Let other method calls from the same client start running,
+        // without waiting for the email sending to complete.
+        this.unblock();
+
+        Email.send({
+          to: to,
+          from: from,
+          subject: subject,
+          text: text
+        });
+      }
+    });
+
+    // In your client code: asynchronously send an email
+    Meteor.call('sendEmail',
+                'alice@example.com',
+                'bob@example.com',
+                'Hello from Meteor!',
+                'This is a test of Email.send.');
 
 {{/better_markdown}}
 </template>

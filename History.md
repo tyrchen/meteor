@@ -1,6 +1,13 @@
 
 ## vNEXT
 
+* `OAuth1Binding` improvements:  #539
+  * `OAuth1Binding.get` and `OAuth1Binding.call` now return the full response
+    (including headers and statusCode), rather than just the data.
+  * Introduce `OAuth1Binding.post`.
+  * `OAuth1Binding.get`, `OAuth1Binding.call` and `OAuth1Binding.post` now take
+    a `params` argument. This facilitates making calls to the Twitter API.
+
 ## v0.5.2
 
 * Fix 0.5.1 regression: Cursor `observe` works during server startup.  #507

@@ -514,3 +514,53 @@ if (Meteor.isServer) {
     onComplete();
   });
 }
+
+if (Meteor.isServer) {
+  Meteor.methods({
+    createInsecureCollection: function (name) {
+      var c = new Meteor.Collection(name);
+      c._insecure = true;
+      Meteor.publish('c-' + name, function () {
+        return c.find();
+      });
+    }
+  });
+}
+
+testAsyncMulti('mongo-livedata - rewrite selector', [
+  function (test, expect) {
+    var collectionName = Meteor.uuid();
+    if (Meteor.isClient) {
+      Meteor.call('createInsecureCollection', collectionName);
+      Meteor.subscribe('c-' + collectionName);
+    }
+
+    var coll = new Meteor.Collection(collectionName);
+
+    var docId;
+
+    var updateCallback = expect(function (err2) {
+      test.isFalse(err2);
+
+      var doc = coll.findOne(docId);
+      test.isTrue(doc);
+      test.equal(doc.name, "f\noobar");
+      test.equal(doc.value, 43);
+    });
+
+    coll.insert({name: 'f\noobar', value: 42}, expect(function (err1, id) {
+      test.isFalse(err1);
+      test.isTrue(id);
+      docId = id;
+
+      var doc = coll.findOne(docId);
+      test.isTrue(doc);
+      test.equal(doc.name, "f\noobar");
+      test.equal(doc.value, 42);
+
+      // Ensure that "i" and "m" flags are respected by making /B/ match b and
+      // /^/ match at the newline.
+      coll.update({name: /^o+B/im}, {$inc: {value: 1}}, updateCallback);
+    }));
+  }
+]);
