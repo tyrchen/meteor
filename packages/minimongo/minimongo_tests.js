@@ -59,123 +59,83 @@ var log_callbacks = function (operations) {
 };
 
 // XXX test shared structure in all MM entrypoints
+Tinytest.add("minimongo - basics", function (test) {
+  var c = new LocalCollection();
 
-_.each(['observe', '_observeUnordered'], function (observeMethod) {
-  Tinytest.add("minimongo - basics (" + observeMethod + ")", function (test) {
-    var c = new LocalCollection();
+  c.insert({type: "kitten", name: "fluffy"});
+  c.insert({type: "kitten", name: "snookums"});
+  c.insert({type: "cryptographer", name: "alice"});
+  c.insert({type: "cryptographer", name: "bob"});
+  c.insert({type: "cryptographer", name: "cara"});
+  test.equal(c.find().count(), 5);
+  test.equal(c.find({type: "kitten"}).count(), 2);
+  test.equal(c.find({type: "cryptographer"}).count(), 3);
+  test.length(c.find({type: "kitten"}).fetch(), 2);
+  test.length(c.find({type: "cryptographer"}).fetch(), 3);
 
-    c.insert({type: "kitten", name: "fluffy"});
-    c.insert({type: "kitten", name: "snookums"});
-    c.insert({type: "cryptographer", name: "alice"});
-    c.insert({type: "cryptographer", name: "bob"});
-    c.insert({type: "cryptographer", name: "cara"});
-    test.equal(c.find().count(), 5);
-    test.equal(c.find({type: "kitten"}).count(), 2);
-    test.equal(c.find({type: "cryptographer"}).count(), 3);
-    test.length(c.find({type: "kitten"}).fetch(), 2);
-    test.length(c.find({type: "cryptographer"}).fetch(), 3);
+  c.remove({name: "cara"});
+  test.equal(c.find().count(), 4);
+  test.equal(c.find({type: "kitten"}).count(), 2);
+  test.equal(c.find({type: "cryptographer"}).count(), 2);
+  test.length(c.find({type: "kitten"}).fetch(), 2);
+  test.length(c.find({type: "cryptographer"}).fetch(), 2);
 
-    c.remove({name: "cara"});
-    test.equal(c.find().count(), 4);
-    test.equal(c.find({type: "kitten"}).count(), 2);
-    test.equal(c.find({type: "cryptographer"}).count(), 2);
-    test.length(c.find({type: "kitten"}).fetch(), 2);
-    test.length(c.find({type: "cryptographer"}).fetch(), 2);
+  c.update({name: "snookums"}, {$set: {type: "cryptographer"}});
+  test.equal(c.find().count(), 4);
+  test.equal(c.find({type: "kitten"}).count(), 1);
+  test.equal(c.find({type: "cryptographer"}).count(), 3);
+  test.length(c.find({type: "kitten"}).fetch(), 1);
+  test.length(c.find({type: "cryptographer"}).fetch(), 3);
 
-    c.update({name: "snookums"}, {$set: {type: "cryptographer"}});
-    test.equal(c.find().count(), 4);
-    test.equal(c.find({type: "kitten"}).count(), 1);
-    test.equal(c.find({type: "cryptographer"}).count(), 3);
-    test.length(c.find({type: "kitten"}).fetch(), 1);
-    test.length(c.find({type: "cryptographer"}).fetch(), 3);
+  c.remove(null);
+  c.remove(false);
+  c.remove(undefined);
+  test.equal(c.find().count(), 4);
 
-    c.remove(null);
-    c.remove(false);
-    c.remove(undefined);
-    test.equal(c.find().count(), 4);
+  c.remove({_id: null});
+  c.remove({_id: false});
+  c.remove({_id: undefined});
+  c.remove();
+  test.equal(c.find().count(), 4);
 
-    c.remove({_id: null});
-    c.remove({_id: false});
-    c.remove({_id: undefined});
-    c.remove();
-    test.equal(c.find().count(), 4);
+  c.remove({});
+  test.equal(c.find().count(), 0);
 
-    c.remove({});
-    test.equal(c.find().count(), 0);
+  c.insert({_id: 1, name: "strawberry", tags: ["fruit", "red", "squishy"]});
+  c.insert({_id: 2, name: "apple", tags: ["fruit", "red", "hard"]});
+  c.insert({_id: 3, name: "rose", tags: ["flower", "red", "squishy"]});
 
-    c.insert({_id: 1, name: "strawberry", tags: ["fruit", "red", "squishy"]});
-    c.insert({_id: 2, name: "apple", tags: ["fruit", "red", "hard"]});
-    c.insert({_id: 3, name: "rose", tags: ["flower", "red", "squishy"]});
+  test.equal(c.find({tags: "flower"}).count(), 1);
+  test.equal(c.find({tags: "fruit"}).count(), 2);
+  test.equal(c.find({tags: "red"}).count(), 3);
+  test.length(c.find({tags: "flower"}).fetch(), 1);
+  test.length(c.find({tags: "fruit"}).fetch(), 2);
+  test.length(c.find({tags: "red"}).fetch(), 3);
 
-    test.equal(c.find({tags: "flower"}).count(), 1);
-    test.equal(c.find({tags: "fruit"}).count(), 2);
-    test.equal(c.find({tags: "red"}).count(), 3);
-    test.length(c.find({tags: "flower"}).fetch(), 1);
-    test.length(c.find({tags: "fruit"}).fetch(), 2);
-    test.length(c.find({tags: "red"}).fetch(), 3);
+  test.equal(c.findOne(1).name, "strawberry");
+  test.equal(c.findOne(2).name, "apple");
+  test.equal(c.findOne(3).name, "rose");
+  test.equal(c.findOne(4), undefined);
+  test.equal(c.findOne("abc"), undefined);
+  test.equal(c.findOne(undefined), undefined);
 
-    test.equal(c.findOne(1).name, "strawberry");
-    test.equal(c.findOne(2).name, "apple");
-    test.equal(c.findOne(3).name, "rose");
-    test.equal(c.findOne(4), undefined);
-    test.equal(c.findOne("abc"), undefined);
-    test.equal(c.findOne(undefined), undefined);
+  test.equal(c.find(1).count(), 1);
+  test.equal(c.find(4).count(), 0);
+  test.equal(c.find("abc").count(), 0);
+  test.equal(c.find(undefined).count(), 0);
+  test.equal(c.find().count(), 3);
+  test.equal(c.find(1, {skip: 1}).count(), 0);
+  test.equal(c.find({_id: 1}, {skip: 1}).count(), 0);
 
-    test.equal(c.find(1).count(), 1);
-    test.equal(c.find(4).count(), 0);
-    test.equal(c.find("abc").count(), 0);
-    test.equal(c.find(undefined).count(), 0);
-    test.equal(c.find().count(), 3);
+  // Regression test for #455.
+  c.insert({foo: {bar: 'baz'}});
+  test.equal(c.find({foo: {bam: 'baz'}}).count(), 0);
+  test.equal(c.find({foo: {bar: 'baz'}}).count(), 1);
 
-    // Regression test for #455.
-    c.insert({foo: {bar: 'baz'}});
-    test.equal(c.find({foo: {bam: 'baz'}}).count(), 0);
-    test.equal(c.find({foo: {bar: 'baz'}}).count(), 1);
-
-    // Duplicate ID.
-    test.throws(function () { c.insert({_id: 1, name: "bla"}); });
-    test.equal(c.find({_id: 1}).count(), 1);
-    test.equal(c.findOne(1).name, "strawberry");
-
-    var ev = "";
-    var makecb = function (tag) {
-      return {
-        added: function (doc) { ev += "a" + tag + doc._id + "_"; },
-        changed: function (doc) { ev += "c" + tag + doc._id + "_"; },
-        removed: function (doc) { ev += "r" + tag + doc._id + "_"; }
-      };
-    };
-    var expect = function (x) {
-      test.equal(ev, x);
-      ev = "";
-    };
-    // This should work equally well for ordered and unordered observations
-    // (because the callbacks don't look at indices and there's no 'moved'
-    // callback).
-    var handle = c.find({tags: "flower"})[observeMethod](makecb('a'));
-    expect("aa3_");
-    c.update({name: "rose"}, {$set: {tags: ["bloom", "red", "squishy"]}});
-    expect("ra3_");
-    c.update({name: "rose"}, {$set: {tags: ["flower", "red", "squishy"]}});
-    expect("aa3_");
-    c.update({name: "rose"}, {$set: {food: false}});
-    expect("ca3_");
-    c.remove({});
-    expect("ra3_");
-    c.insert({_id: 4, name: "daisy", tags: ["flower"]});
-    expect("aa4_");
-    handle.stop();
-    // After calling stop, no more callbacks are called.
-    c.insert({_id: 5, name: "iris", tags: ["flower"]});
-    expect("");
-
-    // Test that observing a lookup by ID works.
-    handle = c.find(4)[observeMethod](makecb('b'));
-    expect('ab4_');
-    c.update(4, {$set: {eek: 5}});
-    expect('cb4_');
-    handle.stop();
-  });
+  // Duplicate ID.
+  test.throws(function () { c.insert({_id: 1, name: "bla"}); });
+  test.equal(c.find({_id: 1}).count(), 1);
+  test.equal(c.findOne(1).name, "strawberry");
 });
 
 Tinytest.add("minimongo - cursors", function (test) {
@@ -835,9 +795,12 @@ Tinytest.add("minimongo - selector_compiler", function (test) {
   match({$where: "_.isArray(this.a)"}, {a: []});
   nomatch({$where: "_.isArray(this.a)"}, {a: 1});
 
+  match({"dogs.0.name": "Fido"}, {dogs: [{name: "Fido"}, {name: "Rex"}]});
+  match({"dogs.1.name": "Rex"}, {dogs: [{name: "Fido"}, {name: "Rex"}]});
+  nomatch({"dogs.1.name": "Fido"}, {dogs: [{name: "Fido"}, {name: "Rex"}]});
+
   // XXX still needs tests:
   // - $elemMatch
-  // - people.2.name
   // - non-scalar arguments to $gt, $lt, etc
 });
 
@@ -914,6 +877,40 @@ Tinytest.add("minimongo - sort", function (test) {
       {a: 46, b: 0, _id: "46_0"},
       {a: 47, b: 1, _id: "47_1"}]);
 });
+
+Tinytest.add("minimongo - subkey sort", function (test) {
+  var c = new LocalCollection();
+
+  // normal case
+  c.insert({a: {b: 2}});
+  c.insert({a: {b: 1}});
+  c.insert({a: {b: 3}});
+  test.equal(
+    _.pluck(c.find({}, {sort: {'a.b': -1}}).fetch(), 'a'),
+    [{b: 3}, {b: 2}, {b: 1}]);
+
+  // isn't an object
+  c.insert({a: 1});
+  test.equal(
+    _.pluck(c.find({}, {sort: {'a.b': 1}}).fetch(), 'a'),
+    [1, {b: 1}, {b: 2}, {b: 3}]);
+
+  // complex object
+  c.insert({a: {b: {c: 1}}});
+  test.equal(
+    _.pluck(c.find({}, {sort: {'a.b': -1}}).fetch(), 'a'),
+    [{b: {c: 1}}, {b: 3}, {b: 2}, {b: 1}, 1]);
+
+  // no such top level prop
+  c.insert({c: 1});
+  test.equal(
+    _.pluck(c.find({}, {sort: {'a.b': -1}}).fetch(), 'a'),
+    [{b: {c: 1}}, {b: 3}, {b: 2}, {b: 1}, 1, undefined]);
+
+  // no such mid level prop. just test that it doesn't throw.
+  test.equal(c.find({}, {sort: {'a.nope.c': -1}}).count(), 6);
+});
+
 
 Tinytest.add("minimongo - modify", function (test) {
   var modify = function (doc, mod, result) {
@@ -1159,7 +1156,7 @@ Tinytest.add("minimongo - modify", function (test) {
 
 // XXX test update() (selecting docs, multi, upsert..)
 
-Tinytest.add("minimongo - observe", function (test) {
+Tinytest.add("minimongo - observe ordered", function (test) {
   var operations = [];
   var cbs = log_callbacks(operations);
   var handle;
@@ -1203,7 +1200,82 @@ Tinytest.add("minimongo - observe", function (test) {
   c.insert({a:100});
   test.equal(operations.shift(), ['added', {a:100}, 0]);
   handle.stop();
+
+  // test skip and limit.
+  c.remove({});
+  handle = c.find({}, {sort: {a: 1}, skip: 1, limit: 2}).observe(cbs);
+  test.equal(operations.shift(), undefined);
+  c.insert({a:1});
+  test.equal(operations.shift(), undefined);
+  c.insert({a:2});
+  test.equal(operations.shift(), ['added', {a:2}, 0]);
+  c.insert({a:3});
+  test.equal(operations.shift(), ['added', {a:3}, 1]);
+  c.insert({a:4});
+  test.equal(operations.shift(), undefined);
+  id = c.findOne({a:2})._id;
+  c.update({a:1}, {a:0});
+  test.equal(operations.shift(), undefined);
+  c.update({a:0}, {a:5});
+  test.equal(operations.shift(), ['removed', id, 0, {a:2}]);
+  test.equal(operations.shift(), ['added', {a:4}, 1]);
+  c.update({a:3}, {a:3.5});
+  test.equal(operations.shift(), ['changed', {a:3.5}, 0, {a:3}]);
+
+  handle.stop();
 });
+
+_.each(['observe', '_observeUnordered'], function (observeMethod) {
+  Tinytest.add("minimongo - observe (" + observeMethod + ")", function (test) {
+    var c = new LocalCollection();
+
+    var ev = "";
+    var makecb = function (tag) {
+      return {
+        added: function (doc) { ev += "a" + tag + doc._id + "_"; },
+        changed: function (doc) { ev += "c" + tag + doc._id + "_"; },
+        removed: function (doc) { ev += "r" + tag + doc._id + "_"; }
+      };
+    };
+    var expect = function (x) {
+      test.equal(ev, x);
+      ev = "";
+    };
+
+    c.insert({_id: 1, name: "strawberry", tags: ["fruit", "red", "squishy"]});
+    c.insert({_id: 2, name: "apple", tags: ["fruit", "red", "hard"]});
+    c.insert({_id: 3, name: "rose", tags: ["flower", "red", "squishy"]});
+
+    // This should work equally well for ordered and unordered observations
+    // (because the callbacks don't look at indices and there's no 'moved'
+    // callback).
+    var handle = c.find({tags: "flower"})[observeMethod](makecb('a'));
+    expect("aa3_");
+    c.update({name: "rose"}, {$set: {tags: ["bloom", "red", "squishy"]}});
+    expect("ra3_");
+    c.update({name: "rose"}, {$set: {tags: ["flower", "red", "squishy"]}});
+    expect("aa3_");
+    c.update({name: "rose"}, {$set: {food: false}});
+    expect("ca3_");
+    c.remove({});
+    expect("ra3_");
+    c.insert({_id: 4, name: "daisy", tags: ["flower"]});
+    expect("aa4_");
+    handle.stop();
+    // After calling stop, no more callbacks are called.
+    c.insert({_id: 5, name: "iris", tags: ["flower"]});
+    expect("");
+
+    // Test that observing a lookup by ID works.
+    handle = c.find(4)[observeMethod](makecb('b'));
+    expect('ab4_');
+    c.update(4, {$set: {eek: 5}});
+    expect('cb4_');
+    handle.stop();
+  });
+});
+
+
 
 Tinytest.add("minimongo - diff", function (test) {
 
